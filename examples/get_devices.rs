@@ -39,6 +39,7 @@ fn main() -> Result<()> {
     for i in 0..num_devices {
         unsafe {
             let mut size: u32 = 0;
+            println!("Type: {:?}", buffer[i as usize].dwType);
             // get size of device path
             let result = GetRawInputDeviceInfoW(
                 buffer[i as usize].hDevice,
