@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     ffi::{c_void, OsString},
     os::windows::ffi::OsStringExt,
 };
@@ -15,7 +15,7 @@ use windows::{
                 GetRawInputDeviceInfoW, GetRawInputDeviceList, RAWINPUTDEVICELIST,
                 RAWINPUTDEVICE_FLAGS, RIDEV_INPUTSINK, RIDI_DEVICENAME,
             },
-            WindowsAndMessaging::WNDCLASSEXW,
+            //WindowsAndMessaging::WNDCLASSEXW,
         },
     },
 };
@@ -35,7 +35,7 @@ impl Devices {
     /// This starts a thread polling for new events coming from the added devices.
     /// On Windows, some parent window is required for this, and a handle to such a window can be provided via the hwnd argument.
     /// Otherwise, this will start a hidden window.
-    pub fn start_listening(hwnd: Option<HWND>) {
+    pub fn start_listening(_: Option<HWND>) {
         // a set of devices we want to listen to
         /* let device_set: HashSet<*mut c_void> = HashSet::new();
 

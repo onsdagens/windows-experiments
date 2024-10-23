@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{self, GetLastError};
-use windows::Win32::UI::Input::{GetRawInputBuffer, RAWINPUT, RAWINPUTHEADER, RAWINPUT_0};
+use windows::Win32::UI::Input::{GetRawInputBuffer, RAWINPUT, RAWINPUTHEADER};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, RegisterClassExW, CW_USEDEFAULT, HMENU, HWND_MESSAGE,
     WINDOW_EX_STYLE, WINDOW_STYLE, WNDCLASS_STYLES,
@@ -115,7 +115,7 @@ fn main() {
     loop {
         // docs say this is written to only if the buffer pointer is null,
         // that's not true, it gets overwritten with each call.
-        let mut buffer_size: u32 = 4096;
+        buffer_size = 4096;
         let n = unsafe {
             GetRawInputBuffer(
                 Some(buffer.as_mut_ptr()),
