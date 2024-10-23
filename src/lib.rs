@@ -1,36 +1,69 @@
-use std::{ffi::OsString, os::windows::ffi::OsStringExt};
+use std::{
+    collections::{HashMap, HashSet},
+    ffi::{c_void, OsString},
+    os::windows::ffi::OsStringExt,
+};
 
 use windows::{
     core::*,
     Win32::{
         Devices::HumanInterfaceDevice::*,
-        Foundation::{BOOLEAN, HANDLE},
+        Foundation::{BOOLEAN, HANDLE, HWND},
         Storage::FileSystem::{FILE_ATTRIBUTE_READONLY, FILE_SHARE_READ, OPEN_EXISTING},
-        UI::Input::{
-            GetRawInputDeviceInfoW, GetRawInputDeviceList, RAWINPUTDEVICELIST,
-            RAWINPUTDEVICE_FLAGS, RIDEV_INPUTSINK, RIDI_DEVICENAME,
+        UI::{
+            Input::{
+                GetRawInputDeviceInfoW, GetRawInputDeviceList, RAWINPUTDEVICELIST,
+                RAWINPUTDEVICE_FLAGS, RIDEV_INPUTSINK, RIDI_DEVICENAME,
+            },
+            WindowsAndMessaging::WNDCLASSEXW,
         },
     },
 };
 pub struct Devices {
-    devices: Vec<HANDLE>,
+    devices: HashSet<*mut c_void>,
     // thread_handle: Option<_>,
 }
 
 impl Devices {
     pub fn new() -> Self {
         Self {
-            devices: vec![],
+            devices: HashSet::new(),
             //thread_handle: None,
         }
     }
 
-    pub fn register() {
-        todo!()
+    /// This starts a thread polling for new events coming from the added devices.
+    /// On Windows, some parent window is required for this, and a handle to such a window can be provided via the hwnd argument.
+    /// Otherwise, this will start a hidden window.
+    pub fn start_listening(hwnd: Option<HWND>) {
+        // a set of devices we want to listen to
+        /* let device_set: HashSet<*mut c_void> = HashSet::new();
+
+        let hwnd = match hwnd {
+            Some(hwnd) => hwnd,
+            None => {
+                let hinstance = unsafe { GetModuleHandleW(PWSTR::null()).unwrap() };
+
+                let classname_str = format!("RawInput Window");
+                let mut classname = OsStr::new(&classname_str)
+                    .encode_wide()
+                    .chain(Some(0).into_iter())
+                    .collect::<Vec<_>>();
+                let classname = PCWSTR::from_raw(&mut classname[0]);
+
+                let wcex = WNDCLASSEXW {
+                    cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
+                    cbClsExtra: 0,
+                    cbWndExtra: 0,
+                    hInstance: hinstance.into(),
+                    lpfnWndProc: Some(DefWindowProcWSystem),
+                }
+            }
+        };*/
     }
 
     pub fn add_device(&mut self, device: impl Device) {
-        self.devices.push(device.get_handle());
+        self.devices.insert(device.get_handle().0);
     }
 }
 
@@ -236,3 +269,19 @@ where
     }
     devices_vec
 }
+
+// #[allow(non_snake_case)]
+// // spicy...
+// unsafe extern "system" fn DefWindowProcWSystem<P0, P1, P2>(
+//     hwnd: P0,
+//     msg: u32,
+//     wparam: P1,
+//     lparam: P2,
+// ) -> Foundation::LRESULT
+// where
+//     P0: windows_core::Param<HWND>,
+//     P1: windows_core::Param<Foundation::WPARAM>,
+//     P2: windows_core::Param<Foundation::LPARAM>,
+// {
+//     DefWindowProcW(hwnd, msg, wparam, lparam)
+// }

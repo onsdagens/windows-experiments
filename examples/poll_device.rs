@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
+use std::time::Instant;
 
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{self, GetLastError};
@@ -109,7 +110,8 @@ fn main() {
     }
     let mut buffer_size: u32 = 4096; // why not .......
     let mut buffer = vec![RAWINPUT::default(); buffer_size as usize];
-
+    let start = Instant::now();
+    let mut timestamp = start;
     loop {
         // docs say this is written to only if the buffer pointer is null,
         // that's not true, it gets overwritten with each call.
@@ -122,6 +124,9 @@ fn main() {
             )
         };
         if n != 0 {
+            let now = Instant::now();
+            let delta = now - timestamp;
+            timestamp = now;
             if n as i32 == -1 {
                 println!("failed to get input buffer: {:?}", unsafe {
                     GetLastError()
@@ -130,7 +135,8 @@ fn main() {
             for point in 0..(n as usize) {
                 unsafe {
                     println!(
-                        "{} moved: x: {}, y: {}",
+                        "{{{}}}:{} moved: x: {}, y: {}",
+                        delta.as_micros(),
                         set.get(&buffer[point].header.hDevice.0).unwrap(),
                         buffer[point].data.mouse.lLastX,
                         buffer[point].data.mouse.lLastY
