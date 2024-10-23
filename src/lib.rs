@@ -7,7 +7,8 @@ use windows::{
         Foundation::{BOOLEAN, HANDLE},
         Storage::FileSystem::{FILE_ATTRIBUTE_READONLY, FILE_SHARE_READ, OPEN_EXISTING},
         UI::Input::{
-            GetRawInputDeviceInfoW, GetRawInputDeviceList, RAWINPUTDEVICELIST, RIDI_DEVICENAME,
+            GetRawInputDeviceInfoW, GetRawInputDeviceList, RAWINPUTDEVICELIST,
+            RAWINPUTDEVICE_FLAGS, RIDEV_INPUTSINK, RIDI_DEVICENAME,
         },
     },
 };
@@ -35,6 +36,9 @@ impl Devices {
 
 pub trait Device {
     const DW_TYPE_MASK: u32;
+    const USAGE_PAGE: u16;
+    const USAGE_ID: u16;
+    const DW_FLAG: RAWINPUTDEVICE_FLAGS;
     fn get_handle(&self) -> HANDLE;
 
     fn new(product_name: String, handle: HANDLE) -> Self;
@@ -85,6 +89,10 @@ pub struct Mouse {
 impl Device for Mouse {
     // MS provided
     const DW_TYPE_MASK: u32 = 0;
+    const USAGE_ID: u16 = HID_USAGE_GENERIC_MOUSE;
+    const USAGE_PAGE: u16 = HID_USAGE_PAGE_GENERIC;
+    const DW_FLAG: RAWINPUTDEVICE_FLAGS = RIDEV_INPUTSINK;
+
     fn get_handle(&self) -> HANDLE {
         todo!()
     }
@@ -105,6 +113,10 @@ pub struct Keyboard {
 impl Device for Keyboard {
     // MS provided
     const DW_TYPE_MASK: u32 = 1;
+    const USAGE_ID: u16 = HID_USAGE_GENERIC_KEYBOARD;
+    const USAGE_PAGE: u16 = HID_USAGE_PAGE_GENERIC;
+    const DW_FLAG: RAWINPUTDEVICE_FLAGS = RIDEV_INPUTSINK;
+
     fn get_handle(&self) -> HANDLE {
         todo!()
     }
@@ -128,6 +140,7 @@ where
     let device_list_size = std::mem::size_of::<RAWINPUTDEVICELIST>() as u32;
 
     // poll the number of devices
+    // SAFETY: We are not providing a buffer, just polling the required size of the future buffer
     let mut result = unsafe { GetRawInputDeviceList(None, &mut num_devices, device_list_size) };
     if result == u32::MAX {
         panic!("Failed to Get Raw Device List!");
@@ -141,6 +154,8 @@ where
     }
 
     // get devices
+    // SAFETY: Required buffer size has been polled, could this write out of bounds
+    // if the amount of connected devices changes?
     unsafe {
         result = GetRawInputDeviceList(Some(&mut buffer[0]), &mut num_devices, device_list_size);
     };
@@ -155,6 +170,7 @@ where
         // get size of device path string
 
         let mut size: u32 = 0;
+        // SAFETY: We are first polling the required buffer size
         let result =
             unsafe { GetRawInputDeviceInfoW(device.hDevice, RIDI_DEVICENAME, None, &mut size) };
         // if failed to get device info
@@ -167,6 +183,7 @@ where
             path_buffer.push(0u16);
         }
         // get device path string
+        // SAFETY: Buffer has been allocated accordingly
         unsafe {
             GetRawInputDeviceInfoW(
                 device.hDevice,
@@ -197,6 +214,8 @@ where
                 const SIZE: usize = 1024;
                 let mut buffer: [u16; SIZE] = [0u16; SIZE];
                 // get product string (typically a name)
+                // SAFETY: Buffer size is handled on the OS side
+                // if the string does not fit, this will fail.
                 let result = unsafe {
                     HidD_GetProductString(
                         handle,
