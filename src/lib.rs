@@ -229,7 +229,7 @@ where
                 // OsString :D
                 let string = OsString::from_wide(&buffer).into_string().unwrap();
                 let string = string.trim_end_matches("\0");
-                devices_vec.push(T::new(string.to_string(), handle));
+                devices_vec.push(T::new(string.to_string(), device.hDevice));
             }
             Err(_) => {}
         }

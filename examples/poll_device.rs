@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 
@@ -21,10 +22,14 @@ use windows::{
 };
 use windows_experiments::{Device, Mouse};
 fn main() {
-    //let mouse = windows_experiments::get_devices::<Mouse>().get(0).unwrap();
+    let mice = windows_experiments::get_devices::<Mouse>();
     // typically if youre running a GUI application, you already have a window for which you can provide a HWND
     // in this example case, we create one specifically for this purpose.
-
+    let mut set = HashMap::new();
+    for mouse in mice {
+        set.insert(mouse.handle.0, mouse.product_name);
+        println!("mouse handle: {:?}", mouse.handle.0);
+    }
     let hwnd: HWND;
     let hinstance = unsafe {
         // if input is NULL, the returned handle is to the calling process
@@ -125,8 +130,10 @@ fn main() {
             for point in 0..(n as usize) {
                 unsafe {
                     println!(
-                        "Mouse moved: x: {}, y: {}",
-                        buffer[point].data.mouse.lLastX, buffer[point].data.mouse.lLastY
+                        "{} moved: x: {}, y: {}",
+                        set.get(&buffer[point].header.hDevice.0).unwrap(),
+                        buffer[point].data.mouse.lLastX,
+                        buffer[point].data.mouse.lLastY
                     )
                 }
             }
