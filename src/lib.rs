@@ -1,33 +1,59 @@
 use std::{
     collections::HashSet,
-    ffi::{c_void, OsString},
-    os::windows::ffi::OsStringExt,
+    ffi::{c_void, OsStr, OsString},
+    os::windows::{
+        ffi::{OsStrExt, OsStringExt},
+        raw::HANDLE,
+    },
 };
 
+use windows::Win32::{
+    Devices::HumanInterfaceDevice::HidD_GetProductString,
+    Foundation::{self, GetLastError, BOOLEAN},
+};
+use windows::Win32::{
+    Devices::HumanInterfaceDevice::HID_USAGE_GENERIC_MOUSE,
+    UI::WindowsAndMessaging::{
+        CreateWindowExW, DefWindowProcW, RegisterClassExW, CW_USEDEFAULT, HMENU, HWND_MESSAGE,
+        WINDOW_EX_STYLE, WINDOW_STYLE, WNDCLASS_STYLES,
+    },
+};
+use windows::Win32::{
+    Devices::HumanInterfaceDevice::{HID_USAGE_GENERIC_KEYBOARD, HID_USAGE_PAGE_GENERIC},
+    UI::Input::{
+        GetRawInputBuffer, RAWINPUT, RAWINPUTDEVICE_FLAGS, RAWINPUTHEADER, RIDEV_INPUTSINK,
+    },
+};
 use windows::{
-    core::*,
+    core::PCWSTR,
     Win32::{
-        Devices::HumanInterfaceDevice::*,
-        Foundation::{BOOLEAN, HANDLE, HWND},
         Storage::FileSystem::{FILE_ATTRIBUTE_READONLY, FILE_SHARE_READ, OPEN_EXISTING},
+        UI::Input::{GetRawInputDeviceInfoW, GetRawInputDeviceList, RIDI_DEVICENAME},
+    },
+};
+use windows::{
+    core::PWSTR,
+    Win32::{
+        Foundation::HWND,
+        System::LibraryLoader::GetModuleHandleW,
         UI::{
-            Input::{
-                GetRawInputDeviceInfoW, GetRawInputDeviceList, RAWINPUTDEVICELIST,
-                RAWINPUTDEVICE_FLAGS, RIDEV_INPUTSINK, RIDI_DEVICENAME,
-            },
-            //WindowsAndMessaging::WNDCLASSEXW,
+            Input::{RegisterRawInputDevices, RAWINPUTDEVICE, RAWINPUTDEVICELIST},
+            WindowsAndMessaging::WNDCLASSEXW,
         },
     },
 };
 pub struct Devices {
-    devices: HashSet<*mut c_void>,
+    //devices: HashSet<*mut c_void>,
+    mice: Vec<Mouse>,
+    keyboards: Vec<Keyboard>,
     // thread_handle: Option<_>,
 }
 
 impl Devices {
     pub fn new() -> Self {
         Self {
-            devices: HashSet::new(),
+            mice: vec![],
+            keyboards: vec![],
             //thread_handle: None,
         }
     }
@@ -35,9 +61,9 @@ impl Devices {
     /// This starts a thread polling for new events coming from the added devices.
     /// On Windows, some parent window is required for this, and a handle to such a window can be provided via the hwnd argument.
     /// Otherwise, this will start a hidden window.
-    pub fn start_listening(_: Option<HWND>) {
+    pub fn start_listening(&self, hwnd: Option<HWND>) {
         // a set of devices we want to listen to
-        /* let device_set: HashSet<*mut c_void> = HashSet::new();
+        let device_set: HashSet<*mut c_void> = HashSet::new();
 
         let hwnd = match hwnd {
             Some(hwnd) => hwnd,
@@ -57,13 +83,91 @@ impl Devices {
                     cbWndExtra: 0,
                     hInstance: hinstance.into(),
                     lpfnWndProc: Some(DefWindowProcWSystem),
+                    lpszClassName: classname,
+                    style: WNDCLASS_STYLES::default(),
+                    ..Default::default()
+                };
+
+                let result = unsafe { RegisterClassExW(&wcex) };
+
+                if result == 0 {
+                    panic!("WindowClass Registration failed");
+                }
+
+                unsafe {
+                    CreateWindowExW(
+                        WINDOW_EX_STYLE::default(),
+                        classname,
+                        classname,
+                        WINDOW_STYLE::default(),
+                        CW_USEDEFAULT,
+                        CW_USEDEFAULT,
+                        CW_USEDEFAULT,
+                        CW_USEDEFAULT,
+                        HWND_MESSAGE,
+                        HMENU::default(),
+                        hinstance,
+                        None,
+                    )
+                }
+                .expect("Window creation failed")
+            }
+        };
+        let mut rawinputdevices = vec![];
+
+        let rawdevice = RAWINPUTDEVICE {
+            usUsagePage: Mouse::USAGE_PAGE,
+            usUsage: Mouse::USAGE_ID,
+            dwFlags: Mouse::DW_FLAG,
+            hwndTarget: hwnd,
+        };
+        rawinputdevices.push(rawdevice);
+
+        let rawdevice = RAWINPUTDEVICE {
+            usUsagePage: Keyboard::USAGE_PAGE,
+            usUsage: Keyboard::USAGE_ID,
+            dwFlags: Mouse::DW_FLAG,
+            hwndTarget: hwnd,
+        };
+        rawinputdevices.push(rawdevice);
+
+        unsafe {
+            RegisterRawInputDevices(
+                &rawinputdevices,
+                std::mem::size_of::<RAWINPUTDEVICE>() as u32,
+            )
+        }
+        .expect("Failed to register raw input devices");
+
+        let mut buffer_size = 4096; // why not ...
+        let mut buffer = vec![RAWINPUT::default(); buffer_size as usize];
+        // this should be the callback function in new thread...
+        loop {
+            buffer_size = 4096;
+            let n = unsafe {
+                GetRawInputBuffer(
+                    Some(buffer.as_mut_ptr()),
+                    &mut buffer_size,
+                    std::mem::size_of::<RAWINPUTHEADER>() as u32,
+                )
+            };
+            if n as i32 == -1 {
+                panic!("failed to get input buffer: {:?}", unsafe {
+                    GetLastError()
+                });
+            } else if n != 0 {
+                for point in 0..(n as usize) {
+                    unsafe {
+                        println!("got some package, this is point {}", n);
+                    }
                 }
             }
-        };*/
+        }
     }
 
-    pub fn add_device(&mut self, device: impl Device) {
-        self.devices.insert(device.get_handle().0);
+    pub fn add_all_devices(&mut self) {
+        //self.keyboards.extend(get_devices::<Keyboard>());
+        //self.mice.extend(get_devices::<Mouse>())
     }
 }
 
@@ -76,43 +180,7 @@ pub trait Device {
 
     fn new(product_name: String, handle: HANDLE) -> Self;
 }
-// pub struct Mouse (+ Device)
-// name: String
-// handle: HANDLE
-// queue: Option<Receiver> (ringbuffer perchance??)
-//
-// trait Device {
-//      get_handle() -> HANDLE
-//
-//      get_queue_mut -> &mut Queue
-//
-//
-// }
-//
-// pub struct Devices {
-//  devices: Vec<HANDLE> // this needs to be pushable
-// }
-//
-// pub struct Packet {
-//      // granularity can only really be 1kHz since that's the usual max polling rate
-//      timestamp: Instant,
-//      data: Data,
-// }
-// impl Devices {
-// Would be good if this is singleton probably
-// fn register() -> ThreadHandle?? {
-//        txers = HashMap::new()
-//        for device in self.devices {
-//          let rx, tx = Queue::new()
-//          device.get_queue_mut() = rx
-//          txers.insert(device.handle, tx)
-//        }
-//        ReceiverThread (||{
-//              let _, tx = txers.get(receiving_handle)
-//              tx.enqueue(packet)
-//        })
-// }
-// }
+
 #[derive(Debug)]
 pub struct Mouse {
     pub product_name: String,
@@ -132,8 +200,8 @@ impl Device for Mouse {
 
     fn new(product_name: String, handle: HANDLE) -> Self {
         Mouse {
-            product_name,
-            handle,
+            product_name: product_name,
+            handle: handle,
         }
     }
 }
@@ -262,7 +330,7 @@ where
                 // OsString :D
                 let string = OsString::from_wide(&buffer).into_string().unwrap();
                 let string = string.trim_end_matches("\0");
-                devices_vec.push(T::new(string.to_string(), device.hDevice));
+                devices_vec.push(T::new(string.to_string(), device.hDevice.0));
             }
             Err(_) => {}
         }
@@ -270,18 +338,18 @@ where
     devices_vec
 }
 
-// #[allow(non_snake_case)]
-// // spicy...
-// unsafe extern "system" fn DefWindowProcWSystem<P0, P1, P2>(
-//     hwnd: P0,
-//     msg: u32,
-//     wparam: P1,
-//     lparam: P2,
-// ) -> Foundation::LRESULT
-// where
-//     P0: windows_core::Param<HWND>,
-//     P1: windows_core::Param<Foundation::WPARAM>,
-//     P2: windows_core::Param<Foundation::LPARAM>,
-// {
-//     DefWindowProcW(hwnd, msg, wparam, lparam)
-// }
+#[allow(non_snake_case)]
+// spicy...
+unsafe extern "system" fn DefWindowProcWSystem<P0, P1, P2>(
+    hwnd: P0,
+    msg: u32,
+    wparam: P1,
+    lparam: P2,
+) -> Foundation::LRESULT
+where
+    P0: windows_core::Param<HWND>,
+    P1: windows_core::Param<Foundation::WPARAM>,
+    P2: windows_core::Param<Foundation::LPARAM>,
+{
+    DefWindowProcW(hwnd, msg, wparam, lparam)
+}
